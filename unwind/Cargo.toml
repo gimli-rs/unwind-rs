@@ -10,7 +10,7 @@ fallible-iterator = "0.1"
 log = "0.3"
 
 [build-dependencies]
-gcc = "0.3"
+gcc = "0.3.52"
 
 [dev-dependencies]
 backtrace = "0.3"
