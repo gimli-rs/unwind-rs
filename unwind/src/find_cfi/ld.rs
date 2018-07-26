@@ -1,7 +1,8 @@
 use libc::{c_void, c_int, c_char};
 use std::ffi::CStr;
 use std::{slice, mem};
-use super::range::AddrRange;
+use range::AddrRange;
+use super::EhRef;
 
 #[repr(C)]
 struct DlPhdrInfo {
@@ -43,13 +44,6 @@ const PT_LOAD: u32 = 1;
 type PhdrCb = extern "C" fn(info: *const DlPhdrInfo, size: usize, data: *mut c_void) -> c_int;
 extern "C" {
     fn dl_iterate_phdr(callback: PhdrCb, data: *mut c_void) -> c_int;
-}
-
-#[derive(Debug)]
-pub struct EhRef {
-    pub obj_base: u64,
-    pub text: AddrRange,
-    pub cfi: AddrRange,
 }
 
 extern "C" fn callback(info: *const DlPhdrInfo, size: usize, data: *mut c_void) -> c_int {
