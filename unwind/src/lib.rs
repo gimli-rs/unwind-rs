@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "nightly", feature(asm, naked_functions))]
+
 extern crate gimli;
 extern crate libc;
 extern crate fallible_iterator;
