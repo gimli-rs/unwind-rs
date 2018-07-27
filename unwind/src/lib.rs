@@ -170,7 +170,7 @@ impl<'a> FallibleIterator for StackFrames<'a> {
             newregs[DwarfRegister::IP] = None;
             for &(reg, ref rule) in row.registers() {
                 trace!("rule {} {:?}", reg, rule);
-                assert!(reg != 7); // stack = cfa
+                assert!(reg != DwarfRegister::SP as u8); // stack = cfa
                 newregs[reg] = match *rule {
                     RegisterRule::Undefined => unreachable!(), // registers[reg],
                     RegisterRule::SameValue => Some(registers[reg].unwrap()), // not sure why this exists
@@ -182,7 +182,7 @@ impl<'a> FallibleIterator for StackFrames<'a> {
                     RegisterRule::Architectural => unreachable!(),
                 };
             }
-            newregs[7] = Some(cfa);
+            newregs[DwarfRegister::SP] = Some(cfa);
 
             *registers = newregs;
             trace!("registers:{:?}", registers);
