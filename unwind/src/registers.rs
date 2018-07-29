@@ -9,7 +9,7 @@ pub struct Registers {
 impl Default for Registers {
     fn default() -> Registers {
         Registers {
-            registers: [Some(0); 96]
+            registers: [Default::default(); 96]
         }
     }
 }
