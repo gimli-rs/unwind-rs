@@ -14,8 +14,8 @@ extern "C" {
 pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
     asm!("
      mov x1, sp
-     sub sp, sp, 0x70
-     .cfi_adjust_cfa_offset 0x70
+     sub sp, sp, 0xB0
+     .cfi_adjust_cfa_offset 0xB0
      str lr, [sp, #0x60]
      .cfi_rel_offset lr, 0x60
      stp x19, x20, [sp, #0x00]
@@ -24,12 +24,16 @@ pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
      stp x25, x26, [sp, #0x30]
      stp x27, x28, [sp, #0x40]
      stp x29, lr,  [sp, #0x50]
+     stp d8,  d9,  [sp, #0x70]
+     stp d10, d11, [sp, #0x80]
+     stp d12, d13, [sp, #0x90]
+     stp d14, d15, [sp, #0xA0]
      mov x2, sp
      bl unwind_recorder
      ldr lr, [sp, #0x60]
      .cfi_restore lr
-     add sp, sp, 0x70
-     .cfi_adjust_cfa_offset -0x70
+     add sp, sp, 0xB0
+     .cfi_adjust_cfa_offset -0xB0
      ret
      ");
     ::std::hint::unreachable_unchecked();
@@ -56,23 +60,22 @@ unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
      ldp x30, x1,  [x0, #0x0F0]
      mov sp, x1
 
-     ldp d0,  d1,  [x0, #0x110]
-     ldp d2,  d3,  [x0, #0x120]
-     ldp d4,  d5,  [x0, #0x130]
-     ldp d6,  d7,  [x0, #0x140]
-     ldp d8,  d9,  [x0, #0x150]
-     ldp d10, d11, [x0, #0x160]
-     ldp d12, d13, [x0, #0x170]
-     ldp d14, d15, [x0, #0x180]
-     ldp d16, d17, [x0, #0x190]
-     ldp d18, d19, [x0, #0x1A0]
-     ldp d20, d21, [x0, #0x1B0]
-     ldp d22, d23, [x0, #0x1C0]
-     ldp d24, d25, [x0, #0x1D0]
-     ldp d26, d27, [x0, #0x1E0]
-     ldp d28, d29, [x0, #0x1F0]
-     ldr d30,      [x0, #0x200]
-     ldr d31,      [x0, #0x208]
+     ldp d0,  d1,  [x0, #0x100]
+     ldp d2,  d3,  [x0, #0x110]
+     ldp d4,  d5,  [x0, #0x120]
+     ldp d6,  d7,  [x0, #0x130]
+     ldp d8,  d9,  [x0, #0x140]
+     ldp d10, d11, [x0, #0x150]
+     ldp d12, d13, [x0, #0x160]
+     ldp d14, d15, [x0, #0x170]
+     ldp d16, d17, [x0, #0x180]
+     ldp d18, d19, [x0, #0x190]
+     ldp d20, d21, [x0, #0x1A0]
+     ldp d22, d23, [x0, #0x1B0]
+     ldp d24, d25, [x0, #0x1C0]
+     ldp d26, d27, [x0, #0x1D0]
+     ldp d28, d29, [x0, #0x1E0]
+     ldp d30, d31, [x0, #0x1F0]
 
      ldp x0,  x1,  [x0, #0x000]
      ret x30 // HYPERSPACE JUMP :D
@@ -86,8 +89,6 @@ struct LandingRegisters {
     fp: u64,      // x29, Frame Pointer
     lr: u64,      // x30, Link Register
     sp: u64,      // x31, Stack Pointer
-
-    pad: u64,
     vector_half: [u64; 32], // d0-d31
 }
 
@@ -95,7 +96,8 @@ struct LandingRegisters {
 #[repr(C)]
 pub struct SavedRegs {
     r: [u64; 11], // x19-x29
-    lr: u64
+    lr: u64,
+    vector_half: [u64; 8], // d8-d15
 }
 
 // TODO: doc hidden
@@ -107,6 +109,9 @@ pub unsafe extern "C" fn unwind_recorder(payload: *mut UnwindPayload, stack: u64
     let mut registers = Registers::default();
     for (regnum, v) in saved_regs.r.iter().enumerate() {
         registers[DwarfRegisterAArch64::X19 as u8 + regnum as u8] = Some(*v);
+    }
+    for (regnum, v) in saved_regs.vector_half.iter().enumerate() {
+        registers[DwarfRegisterAArch64::V8 as u8 + regnum as u8] = Some(*v);
     }
     registers[DwarfRegisterAArch64::SP] = Some(stack);
     registers[DwarfRegisterAArch64::IP] = Some(saved_regs.lr);
@@ -126,11 +131,14 @@ pub unsafe fn land(regs: &Registers) {
         fp: regs[DwarfRegisterAArch64::X29].unwrap_or(0),
         lr: regs[DwarfRegisterAArch64::IP].unwrap_or(0),
         sp: regs[DwarfRegisterAArch64::SP].unwrap_or(0),
-        pad: 0,
         vector_half: [0; 32]
     };
     for (i, v) in lr.r.iter_mut().enumerate() {
         *v = regs[i as u8].unwrap_or(0);
+    }
+
+    for (i, v) in lr.vector_half.iter_mut().enumerate() {
+        *v = regs[DwarfRegisterAArch64::V0 as u8 + i as u8].unwrap_or(0);
     }
     unwind_lander(&lr);
 }
