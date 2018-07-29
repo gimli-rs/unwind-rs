@@ -54,7 +54,7 @@ unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
      ldp x26, x27, [x0, #0x0D0]
      ldp x28, x29, [x0, #0x0E0]
      ldp x30, x1,  [x0, #0x0F0]
-     mov x1, sp
+     mov sp, x1
 
      ldp d0,  d1,  [x0, #0x110]
      ldp d2,  d3,  [x0, #0x120]
