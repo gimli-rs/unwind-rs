@@ -14,26 +14,25 @@ extern "C" {
 pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
     asm!("
      mov x1, sp
-     sub sp, sp, 0xB0
-     .cfi_adjust_cfa_offset 0xB0
-     str lr, [sp, #0x60]
-     .cfi_rel_offset lr, 0x60
+     sub sp, sp, 0xA0
+     .cfi_adjust_cfa_offset 0xA0
      stp x19, x20, [sp, #0x00]
      stp x21, x22, [sp, #0x10]
      stp x23, x24, [sp, #0x20]
      stp x25, x26, [sp, #0x30]
      stp x27, x28, [sp, #0x40]
      stp x29, lr,  [sp, #0x50]
-     stp d8,  d9,  [sp, #0x70]
-     stp d10, d11, [sp, #0x80]
-     stp d12, d13, [sp, #0x90]
-     stp d14, d15, [sp, #0xA0]
+     .cfi_rel_offset lr, 0x58
+     stp d8,  d9,  [sp, #0x60]
+     stp d10, d11, [sp, #0x70]
+     stp d12, d13, [sp, #0x80]
+     stp d14, d15, [sp, #0x90]
      mov x2, sp
      bl unwind_recorder
-     ldr lr, [sp, #0x60]
+     ldr lr, [sp, #0x58]
      .cfi_restore lr
-     add sp, sp, 0xB0
-     .cfi_adjust_cfa_offset -0xB0
+     add sp, sp, 0xA0
+     .cfi_adjust_cfa_offset -0xA0
      ret
      ");
     ::std::hint::unreachable_unchecked();
