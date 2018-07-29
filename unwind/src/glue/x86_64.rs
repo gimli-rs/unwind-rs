@@ -3,25 +3,12 @@ use registers::{Registers, DwarfRegister};
 
 #[allow(improper_ctypes)] // trampoline just forwards the ptr
 extern "C" {
-    #[cfg(not(feature = "nightly"))]
     pub fn unwind_trampoline(payload: *mut UnwindPayload);
-    #[cfg(not(feature = "nightly"))]
     fn unwind_lander(regs: *const LandingRegisters);
 }
 
 #[cfg(feature = "nightly")]
-#[naked]
-pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
-    asm!(include_str!("x86_64_trampoline.S"));
-    ::std::hint::unreachable_unchecked();
-}
-
-#[cfg(feature = "nightly")]
-#[naked]
-unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
-    asm!(include_str!("x86_64_lander.S"));
-    ::std::hint::unreachable_unchecked();
-}
+global_asm!(include_str!("x86_64_helper.S"));
 
 #[repr(C)]
 struct LandingRegisters {

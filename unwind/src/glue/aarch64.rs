@@ -3,16 +3,16 @@ use registers::{Registers, DwarfRegisterAArch64};
 
 #[allow(improper_ctypes)] // trampoline just forwards the ptr
 extern "C" {
-    #[cfg(not(feature = "nightly"))]
     pub fn unwind_trampoline(payload: *mut UnwindPayload);
-    #[cfg(not(feature = "nightly"))]
     fn unwind_lander(regs: *const LandingRegisters);
 }
 
 #[cfg(feature = "nightly")]
-#[naked]
-pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
-    asm!("
+global_asm! {
+r#"
+.global unwind_trampoline
+unwind_trampoline:
+.cfi_startproc
      mov x1, sp
      sub sp, sp, 0xA0
      .cfi_adjust_cfa_offset 0xA0
@@ -34,14 +34,10 @@ pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
      add sp, sp, 0xA0
      .cfi_adjust_cfa_offset -0xA0
      ret
-     ");
-    ::std::hint::unreachable_unchecked();
-}
+.cfi_endproc
 
-#[cfg(feature = "nightly")]
-#[naked]
-unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
-    asm!("
+.global unwind_lander
+unwind_lander:
      ldp x2,  x3,  [x0, #0x010]
      ldp x4,  x5,  [x0, #0x020]
      ldp x6,  x7,  [x0, #0x030]
@@ -78,8 +74,7 @@ unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
 
      ldp x0,  x1,  [x0, #0x000]
      ret x30 // HYPERSPACE JUMP :D
-     ");
-    ::std::hint::unreachable_unchecked();
+"#
 }
 
 #[repr(C)]
