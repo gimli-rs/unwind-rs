@@ -5,7 +5,7 @@ debug = true
 debug = true
 
 [workspace]
-members = ["hardliner", "unwind"]
+members = ["unwind"]
 
 #[patch.crates-io]
 #gimli = { git = 'https://github.com/main--/gimli.git?branch=unwind-patches' }
