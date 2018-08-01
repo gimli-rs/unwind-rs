@@ -20,7 +20,7 @@ fn foo() {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     foo();
     println!("down");
