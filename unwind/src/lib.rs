@@ -115,47 +115,32 @@ impl ObjectRecord {
             ..
         } = self;
 
-        let fdeptr = eh_frame_hdr.table().unwrap().lookup(address, bases).unwrap();
-        let fdeptr = match fdeptr {
-            Pointer::Direct(x) => x,
-            _ => unreachable!(),
-        };
+        let fde = eh_frame_hdr.table().unwrap()
+            .lookup_and_parse(address, bases, sel.clone(), |offset| sel.cie_from_offset(bases, offset))?;
 
-        let entry = gimli::parse_cfi_entry(bases, *sel, &mut EndianBuf::new(unsafe { std::slice::from_raw_parts(fdeptr as *const u8, 0x1000000) }, NativeEndian)).unwrap().unwrap();
-        let target_fde = match entry {
-            CieOrFde::Fde(fde) => Some(fde.parse(|offset| sel.cie_from_offset(bases, offset))?),
-            CieOrFde::Cie(_) => unimplemented!(), // return error here probably
-        };
+        let mut result_row = None;
+        let mut ctx = ctx.initialize(fde.cie()).unwrap();
 
-
-        if let Some(fde) = target_fde {
-            trace!("fde {:x} - {:x}", fde.initial_address(), fde.len());
-            assert!(fde.contains(address));
-            let mut result_row = None;
-            let mut ctx = ctx.initialize(fde.cie()).unwrap();
-
-            {
-                let mut table = UnwindTable::new(&mut ctx, &fde);
-                while let Some(row) = table.next_row()? {
-                    if row.contains(address) {
-                        result_row = Some(row.clone());
-                        break;
-                    }
+        {
+            let mut table = UnwindTable::new(&mut ctx, &fde);
+            while let Some(row) = table.next_row()? {
+                if row.contains(address) {
+                    result_row = Some(row.clone());
+                    break;
                 }
-            }
-
-            if let Some(row) = result_row {
-                return Ok(UnwindInfo {
-                    row,
-                    ctx: ctx.reset(),
-                    personality: fde.personality(),
-                    lsda: fde.lsda(),
-                    initial_address: fde.initial_address(),
-                });
             }
         }
 
-        Err(gimli::Error::NoUnwindInfoForAddress)
+        match result_row {
+            Some(row) => Ok(UnwindInfo {
+                row,
+                ctx: ctx.reset(),
+                personality: fde.personality(),
+                lsda: fde.lsda(),
+                initial_address: fde.initial_address(),
+            }),
+            None => Err(gimli::Error::NoUnwindInfoForAddress)
+        }
     }
 }
 
