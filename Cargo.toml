@@ -8,6 +8,6 @@ debug = true
 members = ["unwind"]
 
 #[patch.crates-io]
-#gimli = { git = 'https://github.com/main--/gimli.git?branch=unwind-patches' }
+#gimli = { git = 'https://github.com/roblabla/gimli.git?branch=lookup_and_parse' }
 [replace]
-"gimli:0.14.0" = { git = 'https://github.com/main--/gimli.git', branch = 'unwind-patches' }
+"gimli:0.16.0" = { git = 'https://github.com/roblabla/gimli.git', branch = 'lookup_and_parse' }
