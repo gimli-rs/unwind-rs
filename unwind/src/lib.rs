@@ -60,7 +60,7 @@ impl Default for DwarfUnwinder {
                 let eh_frame_hdr = EhFrameHdr::new(eh_frame_hdr, NativeEndian).parse(&bases, 8).unwrap();
 
                 let cfi_addr = deref_ptr(eh_frame_hdr.eh_frame_ptr());
-                let cfi_sz = 0x10000000; // FIXME HACK
+                let cfi_sz = er.ehframe_end.saturating_sub(cfi_addr);
 
                 let eh_frame: &'static [u8] = std::slice::from_raw_parts(cfi_addr as *const u8, cfi_sz as usize);
                 trace!("cfi at {:p} sz {:x}", cfi_addr as *const u8, cfi_sz);
