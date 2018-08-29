@@ -18,7 +18,7 @@ pub fn find_cfi_sections() -> Vec<EhRef> {
         let text_end = &__text_end as *const _ as u64;
         let cfi_start = &__ehframehdr_start as *const _ as u64;
         let cfi_end = &__ehframehdr_end as *const _ as u64;
-        let eh_frame_end = &__ehframe_end as *const _ as u64;
+        let ehframe_end = &__ehframe_end as *const _ as u64;
 
         cfi.push(EhRef {
             obj_base: 0,
