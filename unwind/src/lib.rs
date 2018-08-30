@@ -5,7 +5,7 @@ extern crate libc;
 extern crate fallible_iterator;
 #[macro_use] extern crate log;
 
-use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, CieOrFde, EndianBuf, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr};
+use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, EndianSlice, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr};
 use fallible_iterator::FallibleIterator;
 
 mod registers;
@@ -35,7 +35,7 @@ pub trait Unwinder: Default {
     fn trace<F>(&mut self, f: F) where F: FnMut(&mut StackFrames);
 }
 
-type StaticReader = EndianBuf<'static, NativeEndian>;
+type StaticReader = EndianSlice<'static, NativeEndian>;
 
 struct ObjectRecord {
     er: EhRef,
