@@ -14,7 +14,7 @@ gcc = "0.3.52"
 
 [dev-dependencies]
 backtrace = "0.3"
-env_logger = "0.5"
+env_logger = "0.6"
 
 [features]
 nightly = []
