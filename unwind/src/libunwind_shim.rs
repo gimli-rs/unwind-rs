@@ -114,7 +114,7 @@ pub unsafe extern "C" fn _Unwind_RaiseException(exception: *mut _Unwind_Exceptio
     unreachable!();
 }
 
-unsafe fn unwind_tracer(mut frames: &mut ::StackFrames, exception: *mut _Unwind_Exception) {
+unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exception) {
     if let Some(contptr) = (*exception).private_contptr {
         loop {
             if let Some(frame) = frames.next().unwrap() {
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn _Unwind_Backtrace(trace: _Unwind_Trace_Fn,
                                     trace_argument: *mut c_void)
                                            -> _Unwind_Reason_Code {
     let mut reterr = _Unwind_Reason_Code::_URC_END_OF_STACK;
-    DwarfUnwinder::default().trace(|mut frames| {
+    DwarfUnwinder::default().trace(|frames| {
         loop {
             match frames.next() {
                 Ok(Some(frame)) => {

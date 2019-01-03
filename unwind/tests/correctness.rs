@@ -28,7 +28,7 @@ fn test_frame_3() {
     }
     println!();
         
-    DwarfUnwinder::default().trace(move |mut frames| {
+    DwarfUnwinder::default().trace(move |frames| {
         // skip 2 (unwind-rs + test_frame_3)
         frames.next().unwrap();
         frames.next().unwrap();

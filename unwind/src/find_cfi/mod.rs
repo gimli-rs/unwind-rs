@@ -5,6 +5,7 @@ pub struct EhRef {
     pub obj_base: u64,
     pub text: AddrRange,
     pub cfi: AddrRange,
+    pub ehframe_end: u64,
 }
 
 #[cfg(unix)]

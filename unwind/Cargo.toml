@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["main() <main@ehvag.de>"]
 
 [dependencies]
-gimli = "0.16"
+gimli = "0.16.1"
 libc = "0.2"
 fallible-iterator = "0.1"
 log = "0.4"
@@ -14,7 +14,7 @@ gcc = "0.3.52"
 
 [dev-dependencies]
 backtrace = "0.3"
-env_logger = "0.5"
+env_logger = "0.6"
 
 [features]
 nightly = []
