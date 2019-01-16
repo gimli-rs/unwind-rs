@@ -40,6 +40,7 @@ struct Phdr64 {
 
 const PT_GNU_EH_FRAME: u32 = 0x6474e550;
 const PT_LOAD: u32 = 1;
+const PF_X: u32 = 1;
 
 type PhdrCb = extern "C" fn(info: *const DlPhdrInfo, size: usize, data: *mut c_void) -> c_int;
 extern "C" {
@@ -56,7 +57,7 @@ extern "C" fn callback(info: *const DlPhdrInfo, size: usize, data: *mut c_void) 
 
         let phdr = slice::from_raw_parts((*info).phdr, (*info).phnum as usize);
 
-        if let Some(text) = phdr.iter().filter(|x| x.type_ == PT_LOAD).next() {
+        if let Some(text) = phdr.iter().filter(|x| x.type_ == PT_LOAD && x.flags & PF_X != 0).next() {
             if let Some(eh_frame) = phdr.iter().filter(|x| x.type_ == PT_GNU_EH_FRAME).next() {
                 let start_addr = (*info).addr + text.vaddr;
                 let cfi_start = (*info).addr + eh_frame.vaddr;
