@@ -156,17 +156,27 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
 pub unsafe extern "C" fn _Unwind_Backtrace(trace: _Unwind_Trace_Fn,
                                     trace_argument: *mut c_void)
                                            -> _Unwind_Reason_Code {
+    let mut reterr = _Unwind_Reason_Code::_URC_END_OF_STACK;
     DwarfUnwinder::default().trace(|frames| {
-        while let Some(frame) = frames.next().unwrap() {
-            let mut ctx = _Unwind_Context {
-                lsda: frame.lsda.unwrap_or(0),
-                ip: frames.registers()[DwarfRegister::IP].unwrap(),
-                initial_address: frame.initial_address,
-                registers: frames.registers(),
-            };
+        loop {
+            match frames.next() {
+                Ok(Some(frame)) => {
+                    let mut ctx = _Unwind_Context {
+                        lsda: frame.lsda.unwrap_or(0),
+                        ip: frames.registers()[DwarfRegister::IP].unwrap(),
+                        initial_address: frame.initial_address,
+                        registers: frames.registers(),
+                    };
 
-            trace(&mut ctx, trace_argument);
+                    trace(&mut ctx, trace_argument);
+                },
+                Ok(None) => break,
+                Err(err) => {
+                    reterr = _Unwind_Reason_Code::_URC_FATAL_PHASE1_ERROR;
+                    break;
+                }
+            }
         }
     });
-    _Unwind_Reason_Code::_URC_END_OF_STACK
+    reterr
 }

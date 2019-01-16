@@ -1,63 +1,14 @@
-use super::{UnwindPayload, StackFrames};
+use {UnwindPayload, StackFrames};
 use registers::{Registers, DwarfRegister};
 
 #[allow(improper_ctypes)] // trampoline just forwards the ptr
 extern "C" {
-    #[cfg(not(feature = "nightly"))]
     pub fn unwind_trampoline(payload: *mut UnwindPayload);
-    #[cfg(not(feature = "nightly"))]
     fn unwind_lander(regs: *const LandingRegisters);
 }
 
 #[cfg(feature = "nightly")]
-#[naked]
-pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
-    asm!("
-     movq %rsp, %rsi
-     .cfi_def_cfa rsi, 8
-     pushq %rbp
-     .cfi_offset rbp, -16
-     pushq %rbx
-     pushq %r12
-     pushq %r13
-     pushq %r14
-     pushq %r15
-     movq %rsp, %rdx
-     subq 0x08, %rsp
-     .cfi_def_cfa rsp, 0x40
-     call unwind_recorder
-     addq 0x38, %rsp
-     .cfi_def_cfa rsp, 8
-     ret
-     ");
-    ::std::hint::unreachable_unchecked();
-}
-
-#[cfg(feature = "nightly")]
-#[naked]
-unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
-    asm!("
-     movq %rdi, %rsp
-     popq %rax
-     popq %rbx
-     popq %rcx
-     popq %rdx
-     popq %rdi
-     popq %rsi
-     popq %rbp
-     popq %r8
-     popq %r9
-     popq %r10
-     popq %r11
-     popq %r12
-     popq %r13
-     popq %r14
-     popq %r15
-     movq 0(%rsp), %rsp
-     ret // HYPERSPACE JUMP :D
-     ");
-    ::std::hint::unreachable_unchecked();
-}
+global_asm!(include_str!("x86_64_helper.S"));
 
 #[repr(C)]
 struct LandingRegisters {
@@ -82,14 +33,15 @@ struct LandingRegisters {
 
 #[repr(C)]
 pub struct SavedRegs {
-    pub r15: u64,
-    pub r14: u64,
-    pub r13: u64,
-    pub r12: u64,
-    pub rbx: u64,
-    pub rbp: u64,
+    r15: u64,
+    r14: u64,
+    r13: u64,
+    r12: u64,
+    rbx: u64,
+    rbp: u64,
 }
 
+// TODO: doc hidden
 #[no_mangle]
 pub unsafe extern "C" fn unwind_recorder(payload: *mut UnwindPayload, stack: u64, saved_regs: *mut SavedRegs) {
     let payload = &mut *payload;
