@@ -58,18 +58,18 @@ extern "C" fn callback(info: *const DlPhdrInfo, size: usize, data: *mut c_void) 
         let phdr = slice::from_raw_parts((*info).phdr, (*info).phnum as usize);
 
         if let Some(text) = phdr.iter().filter(|x| x.type_ == PT_LOAD && x.flags & PF_X != 0).next() {
-            if let Some(eh_frame) = phdr.iter().filter(|x| x.type_ == PT_GNU_EH_FRAME).next() {
+            if let Some(eh_frame_hdr) = phdr.iter().filter(|x| x.type_ == PT_GNU_EH_FRAME).next() {
                 let start_addr = (*info).addr + text.vaddr;
-                let cfi_start = (*info).addr + eh_frame.vaddr;
+                let eh_frame_hdr_start = (*info).addr + eh_frame_hdr.vaddr;
                 let max_vaddr = phdr.iter().filter(|x| x.type_ == PT_LOAD)
                     .fold(0, |vaddr, x| cmp::max(vaddr, x.vaddr + x.memsz));
                 // This is an upper bound, not the exact address.
-                let ehframe_end = (*info).addr + max_vaddr;
+                let eh_frame_end = (*info).addr + max_vaddr;
                 (*data).push(EhRef {
                     obj_base: (*info).addr,
                     text: AddrRange { start: start_addr, end: start_addr + text.memsz },
-                    cfi: AddrRange { start: cfi_start, end: cfi_start + eh_frame.memsz },
-                    ehframe_end,
+                    eh_frame_hdr: AddrRange { start: eh_frame_hdr_start, end: eh_frame_hdr_start + eh_frame_hdr.memsz },
+                    eh_frame_end,
                 });
             }
         }

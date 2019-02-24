@@ -5,7 +5,7 @@ extern crate libc;
 extern crate fallible_iterator;
 #[macro_use] extern crate log;
 
-use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, EndianSlice, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr};
+use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, EndianSlice, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr, X86_64};
 use fallible_iterator::FallibleIterator;
 
 mod registers;
@@ -13,7 +13,7 @@ mod find_cfi;
 mod range;
 pub mod libunwind_shim;
 pub mod glue;
-use registers::{Registers, DwarfRegister};
+use registers::Registers;
 use find_cfi::EhRef;
 
 
@@ -53,20 +53,23 @@ impl Default for DwarfUnwinder {
     fn default() -> DwarfUnwinder {
         let cfi = find_cfi::find_cfi_sections().into_iter().map(|er| {
             unsafe {
-                let bases = BaseAddresses::default().set_cfi(er.cfi.start);
+                // TODO: set_got()
+                let bases = BaseAddresses::default()
+                    .set_eh_frame_hdr(er.eh_frame_hdr.start)
+                    .set_text(er.text.start);
 
-                let eh_frame_hdr: &'static [u8] = std::slice::from_raw_parts(er.cfi.start as *const u8, er.cfi.len() as usize);
+                let eh_frame_hdr: &'static [u8] = std::slice::from_raw_parts(er.eh_frame_hdr.start as *const u8, er.eh_frame_hdr.len() as usize);
 
                 let eh_frame_hdr = EhFrameHdr::new(eh_frame_hdr, NativeEndian).parse(&bases, 8).unwrap();
 
-                let cfi_addr = deref_ptr(eh_frame_hdr.eh_frame_ptr());
-                let cfi_sz = er.ehframe_end.saturating_sub(cfi_addr);
+                let eh_frame_addr = deref_ptr(eh_frame_hdr.eh_frame_ptr());
+                let eh_frame_sz = er.eh_frame_end.saturating_sub(eh_frame_addr);
 
-                let eh_frame: &'static [u8] = std::slice::from_raw_parts(cfi_addr as *const u8, cfi_sz as usize);
-                trace!("cfi at {:p} sz {:x}", cfi_addr as *const u8, cfi_sz);
+                let eh_frame: &'static [u8] = std::slice::from_raw_parts(eh_frame_addr as *const u8, eh_frame_sz as usize);
+                trace!("eh_frame at {:p} sz {:x}", eh_frame_addr as *const u8, eh_frame_sz);
                 let eh_frame = EhFrame::new(eh_frame, NativeEndian);
 
-                let bases = bases.set_cfi(cfi_addr).set_data(er.cfi.start);
+                let bases = bases.set_eh_frame(eh_frame_addr);
 
                 ObjectRecord { er, eh_frame_hdr, eh_frame, bases }
             }
@@ -167,10 +170,10 @@ impl<'a> FallibleIterator for StackFrames<'a> {
 
         if let Some((row, cfa)) = self.state.take() {
             let mut newregs = registers.clone();
-            newregs[DwarfRegister::IP] = None;
+            newregs[X86_64::RA] = None;
             for &(reg, ref rule) in row.registers() {
-                trace!("rule {} {:?}", reg, rule);
-                assert!(reg != 7); // stack = cfa
+                trace!("rule {:?} {:?}", reg, rule);
+                assert!(reg != X86_64::RSP); // stack = cfa
                 newregs[reg] = match *rule {
                     RegisterRule::Undefined => unreachable!(), // registers[reg],
                     RegisterRule::SameValue => Some(registers[reg].unwrap()), // not sure why this exists
@@ -189,7 +192,7 @@ impl<'a> FallibleIterator for StackFrames<'a> {
         }
 
 
-        if let Some(mut caller) = registers[DwarfRegister::IP] {
+        if let Some(mut caller) = registers[X86_64::RA] {
             caller -= 1; // THIS IS NECESSARY
             debug!("caller is 0x{:x}", caller);
 

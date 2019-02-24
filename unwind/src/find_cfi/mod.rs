@@ -4,8 +4,8 @@ use range::AddrRange;
 pub struct EhRef {
     pub obj_base: u64,
     pub text: AddrRange,
-    pub cfi: AddrRange,
-    pub ehframe_end: u64,
+    pub eh_frame_hdr: AddrRange,
+    pub eh_frame_end: u64,
 }
 
 #[cfg(unix)]

@@ -1,3 +1,4 @@
+use gimli;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::ops::{Index, IndexMut};
 
@@ -18,51 +19,30 @@ impl Debug for Registers {
     }
 }
 
-impl Index<u8> for Registers {
+impl Index<u16> for Registers {
     type Output = Option<u64>;
 
-    fn index(&self, index: u8) -> &Option<u64> {
+    fn index(&self, index: u16) -> &Option<u64> {
         &self.registers[index as usize]
     }
 }
 
-impl IndexMut<u8> for Registers {
-    fn index_mut(&mut self, index: u8) -> &mut Option<u64> {
+impl IndexMut<u16> for Registers {
+    fn index_mut(&mut self, index: u16) -> &mut Option<u64> {
         &mut self.registers[index as usize]
     }
 }
 
-impl Index<DwarfRegister> for Registers {
+impl Index<gimli::Register> for Registers {
     type Output = Option<u64>;
 
-    fn index(&self, reg: DwarfRegister) -> &Option<u64> {
-        &self[reg as u8]
+    fn index(&self, reg: gimli::Register) -> &Option<u64> {
+        &self[reg.0]
     }
 }
 
-impl IndexMut<DwarfRegister> for Registers {
-    fn index_mut(&mut self, reg: DwarfRegister) -> &mut Option<u64> {
-        &mut self[reg as u8]
+impl IndexMut<gimli::Register> for Registers {
+    fn index_mut(&mut self, reg: gimli::Register) -> &mut Option<u64> {
+        &mut self[reg.0]
     }
-}
-
-pub enum DwarfRegister {
-    SP = 7,
-    IP = 16,
-    
-    Rax = 0,
-    Rbx = 3,
-    Rcx = 2,
-    Rdx = 1,
-    Rdi = 5,
-    Rsi = 4,
-    Rbp = 6,
-    R8 = 8,
-    R9 = 9,
-    R10 = 10,
-    R11 = 11,
-    R12 = 12,
-    R13 = 13,
-    R14 = 14,
-    R15 = 15,
 }

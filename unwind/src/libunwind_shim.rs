@@ -2,8 +2,9 @@
 
 use libc::{c_void, c_int};
 use fallible_iterator::FallibleIterator;
+use gimli::X86_64;
 
-use registers::{Registers, DwarfRegister};
+use registers::Registers;
 use super::{DwarfUnwinder, Unwinder};
 
 #[repr(C)]
@@ -87,12 +88,12 @@ pub unsafe extern "C" fn _Unwind_GetLanguageSpecificData(ctx: *mut _Unwind_Conte
 
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_SetGR(ctx: *mut _Unwind_Context, reg_index: c_int, value: _Unwind_Word) {
-    (*(*ctx).registers)[reg_index as u8] = Some(value as u64);
+    (*(*ctx).registers)[reg_index as u16] = Some(value as u64);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_SetIP(ctx: *mut _Unwind_Context, value: _Unwind_Word) {
-    (*(*ctx).registers)[DwarfRegister::IP] = Some(value as u64);
+    (*(*ctx).registers)[X86_64::RA] = Some(value as u64);
 }
 
 #[no_mangle]
@@ -118,7 +119,7 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
     if let Some(contptr) = (*exception).private_contptr {
         loop {
             if let Some(frame) = frames.next().unwrap() {
-                if frames.registers()[DwarfRegister::SP].unwrap() == contptr {
+                if frames.registers()[X86_64::RSP].unwrap() == contptr {
                     break;
                 }
             } else {
@@ -134,12 +135,12 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
 
             let mut ctx = _Unwind_Context {
                 lsda: frame.lsda.unwrap(),
-                ip: frames.registers()[DwarfRegister::IP].unwrap(),
+                ip: frames.registers()[X86_64::RA].unwrap(),
                 initial_address: frame.initial_address,
                 registers: frames.registers(),
             };
 
-            (*exception).private_contptr = frames.registers()[DwarfRegister::SP];
+            (*exception).private_contptr = frames.registers()[X86_64::RSP];
 
             // ABI specifies that phase 1 is optional, so we just run phase 2 (CLEANUP_PHASE)
             match personality(1, _Unwind_Action::_UA_CLEANUP_PHASE as c_int, (*exception).exception_class,
@@ -160,7 +161,7 @@ pub unsafe extern "C" fn _Unwind_Backtrace(trace: _Unwind_Trace_Fn,
         while let Some(frame) = frames.next().unwrap() {
             let mut ctx = _Unwind_Context {
                 lsda: frame.lsda.unwrap_or(0),
-                ip: frames.registers()[DwarfRegister::IP].unwrap(),
+                ip: frames.registers()[X86_64::RA].unwrap(),
                 initial_address: frame.initial_address,
                 registers: frames.registers(),
             };
