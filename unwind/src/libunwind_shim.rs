@@ -54,6 +54,8 @@ pub type _Unwind_Trace_Fn = extern "C" fn(ctx: *mut _Unwind_Context, arg: *mut c
                                           -> _Unwind_Reason_Code;
 type PersonalityRoutine = extern "C" fn(version: c_int, actions: c_int, class: u64, object: *mut _Unwind_Exception, context: *mut _Unwind_Context) -> _Unwind_Reason_Code;
 
+// FIXME: we skip over this function when unwinding, so we should ensure
+// it never needs any cleanup. Currently this is not true.
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_Resume(exception: *mut _Unwind_Exception) -> ! {
     DwarfUnwinder::default().trace(|frames| unwind_tracer(frames, exception));
@@ -108,6 +110,13 @@ pub unsafe extern "C" fn _Unwind_FindEnclosingFunction(pc: *mut c_void) -> *mut 
     pc // FIXME: implement this
 }
 
+// FIXME: Set `unwind(allowed)` because we need to be able to unwind this function as
+// part of its operation. But this means any panics in this function are undefined
+// behaviour, and we don't currently ensure it doesn't panic.
+//
+// On stable (1.32), `unwind(allowed)` is the default, but this will change in 1.33, with
+// no stable way of setting `unwind(allowed)`, so this function will always abort in 1.33.
+#[cfg_attr(feature = "nightly", unwind(allowed))]
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_RaiseException(exception: *mut _Unwind_Exception) -> _Unwind_Reason_Code {
     (*exception).private_contptr = None;

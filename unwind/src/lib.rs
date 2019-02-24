@@ -1,4 +1,5 @@
-#![cfg_attr(feature = "nightly", feature(asm, naked_functions))]
+#![cfg_attr(feature = "nightly", feature(unwind_attributes))]
+#![cfg_attr(feature = "asm", feature(asm, naked_functions))]
 
 extern crate gimli;
 extern crate libc;

@@ -4,13 +4,13 @@ use registers::Registers;
 
 #[allow(improper_ctypes)] // trampoline just forwards the ptr
 extern "C" {
-    #[cfg(not(feature = "nightly"))]
+    #[cfg(not(feature = "asm"))]
     pub fn unwind_trampoline(payload: *mut UnwindPayload);
-    #[cfg(not(feature = "nightly"))]
+    #[cfg(not(feature = "asm"))]
     fn unwind_lander(regs: *const LandingRegisters);
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "asm")]
 #[naked]
 pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
     asm!("
@@ -34,7 +34,7 @@ pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
     ::std::hint::unreachable_unchecked();
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "asm")]
 #[naked]
 unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
     asm!("

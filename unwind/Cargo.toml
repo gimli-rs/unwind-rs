@@ -18,3 +18,4 @@ env_logger = "0.6"
 
 [features]
 nightly = []
+asm = ["nightly"]
