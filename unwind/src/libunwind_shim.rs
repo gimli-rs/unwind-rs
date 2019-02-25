@@ -2,8 +2,9 @@
 
 use libc::{c_void, c_int};
 use fallible_iterator::FallibleIterator;
+use gimli::X86_64;
 
-use registers::{Registers, DwarfRegister};
+use registers::Registers;
 use super::{DwarfUnwinder, Unwinder};
 
 #[repr(C)]
@@ -53,6 +54,8 @@ pub type _Unwind_Trace_Fn = extern "C" fn(ctx: *mut _Unwind_Context, arg: *mut c
                                           -> _Unwind_Reason_Code;
 type PersonalityRoutine = extern "C" fn(version: c_int, actions: c_int, class: u64, object: *mut _Unwind_Exception, context: *mut _Unwind_Context) -> _Unwind_Reason_Code;
 
+// FIXME: we skip over this function when unwinding, so we should ensure
+// it never needs any cleanup. Currently this is not true.
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_Resume(exception: *mut _Unwind_Exception) -> ! {
     DwarfUnwinder::default().trace(|frames| unwind_tracer(frames, exception));
@@ -87,12 +90,12 @@ pub unsafe extern "C" fn _Unwind_GetLanguageSpecificData(ctx: *mut _Unwind_Conte
 
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_SetGR(ctx: *mut _Unwind_Context, reg_index: c_int, value: _Unwind_Word) {
-    (*(*ctx).registers)[reg_index as u8] = Some(value as u64);
+    (*(*ctx).registers)[reg_index as u16] = Some(value as u64);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_SetIP(ctx: *mut _Unwind_Context, value: _Unwind_Word) {
-    (*(*ctx).registers)[DwarfRegister::IP] = Some(value as u64);
+    (*(*ctx).registers)[X86_64::RA] = Some(value as u64);
 }
 
 #[no_mangle]
@@ -107,6 +110,13 @@ pub unsafe extern "C" fn _Unwind_FindEnclosingFunction(pc: *mut c_void) -> *mut 
     pc // FIXME: implement this
 }
 
+// FIXME: Set `unwind(allowed)` because we need to be able to unwind this function as
+// part of its operation. But this means any panics in this function are undefined
+// behaviour, and we don't currently ensure it doesn't panic.
+//
+// On stable (1.32), `unwind(allowed)` is the default, but this will change in 1.33, with
+// no stable way of setting `unwind(allowed)`, so this function will always abort in 1.33.
+#[cfg_attr(feature = "nightly", unwind(allowed))]
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_RaiseException(exception: *mut _Unwind_Exception) -> _Unwind_Reason_Code {
     (*exception).private_contptr = None;
@@ -118,7 +128,7 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
     if let Some(contptr) = (*exception).private_contptr {
         loop {
             if let Some(frame) = frames.next().unwrap() {
-                if frames.registers()[DwarfRegister::SP].unwrap() == contptr {
+                if frames.registers()[X86_64::RSP].unwrap() == contptr {
                     break;
                 }
             } else {
@@ -134,12 +144,12 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
 
             let mut ctx = _Unwind_Context {
                 lsda: frame.lsda.unwrap(),
-                ip: frames.registers()[DwarfRegister::IP].unwrap(),
+                ip: frames.registers()[X86_64::RA].unwrap(),
                 initial_address: frame.initial_address,
                 registers: frames.registers(),
             };
 
-            (*exception).private_contptr = frames.registers()[DwarfRegister::SP];
+            (*exception).private_contptr = frames.registers()[X86_64::RSP];
 
             // ABI specifies that phase 1 is optional, so we just run phase 2 (CLEANUP_PHASE)
             match personality(1, _Unwind_Action::_UA_CLEANUP_PHASE as c_int, (*exception).exception_class,
@@ -160,7 +170,7 @@ pub unsafe extern "C" fn _Unwind_Backtrace(trace: _Unwind_Trace_Fn,
         while let Some(frame) = frames.next().unwrap() {
             let mut ctx = _Unwind_Context {
                 lsda: frame.lsda.unwrap_or(0),
-                ip: frames.registers()[DwarfRegister::IP].unwrap(),
+                ip: frames.registers()[X86_64::RA].unwrap(),
                 initial_address: frame.initial_address,
                 registers: frames.registers(),
             };

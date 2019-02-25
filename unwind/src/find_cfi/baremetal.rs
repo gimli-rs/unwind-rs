@@ -14,17 +14,20 @@ pub fn find_cfi_sections() -> Vec<EhRef> {
     unsafe {
         // Safety: None of those are actual accesses - we only get the address
         // of those values.
-        let text_start = &__text_start as *const _ as u64;
-        let text_end = &__text_end as *const _ as u64;
-        let cfi_start = &__ehframehdr_start as *const _ as u64;
-        let cfi_end = &__ehframehdr_end as *const _ as u64;
-        let ehframe_end = &__ehframe_end as *const _ as u64;
+        let text = AddrRange {
+            start: &__text_start as *const _ as u64,
+            end: &__text_end as *const _ as u64,
+        };
+        let eh_frame_hdr = AddrRange {
+            start: &__ehframehdr_start as *const _ as u64,
+            end: &__ehframehdr_end as *const _ as u64,
+        };
+        let eh_frame_end = &__ehframe_end as *const _ as u64;
 
         cfi.push(EhRef {
-            obj_base: 0,
-            text: AddrRange { start: text_start, end: text_end },
-            cfi: AddrRange { start: cfi_start, end: cfi_end },
-            ehframe_end,
+            text,
+            eh_frame_hdr,
+            eh_frame_end,
         });
     }
     trace!("CFI sections: {:?}", cfi);

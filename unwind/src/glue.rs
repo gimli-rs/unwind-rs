@@ -1,15 +1,16 @@
+use gimli::X86_64;
 use super::{UnwindPayload, StackFrames};
-use registers::{Registers, DwarfRegister};
+use registers::Registers;
 
 #[allow(improper_ctypes)] // trampoline just forwards the ptr
 extern "C" {
-    #[cfg(not(feature = "nightly"))]
+    #[cfg(not(feature = "asm"))]
     pub fn unwind_trampoline(payload: *mut UnwindPayload);
-    #[cfg(not(feature = "nightly"))]
+    #[cfg(not(feature = "asm"))]
     fn unwind_lander(regs: *const LandingRegisters);
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "asm")]
 #[naked]
 pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
     asm!("
@@ -33,7 +34,7 @@ pub unsafe extern fn unwind_trampoline(_payload: *mut UnwindPayload) {
     ::std::hint::unreachable_unchecked();
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(feature = "asm")]
 #[naked]
 unsafe extern fn unwind_lander(_regs: *const LandingRegisters) {
     asm!("
@@ -96,14 +97,14 @@ pub unsafe extern "C" fn unwind_recorder(payload: *mut UnwindPayload, stack: u64
     let saved_regs = &*saved_regs;
 
     let mut registers = Registers::default();
-    registers[DwarfRegister::Rbx] = Some(saved_regs.rbx);
-    registers[DwarfRegister::Rbp] = Some(saved_regs.rbp);
-    registers[DwarfRegister::SP] = Some(stack + 8);
-    registers[DwarfRegister::R12] = Some(saved_regs.r12);
-    registers[DwarfRegister::R13] = Some(saved_regs.r13);
-    registers[DwarfRegister::R14] = Some(saved_regs.r14);
-    registers[DwarfRegister::R15] = Some(saved_regs.r15);
-    registers[DwarfRegister::IP] = Some(*(stack as *const u64));
+    registers[X86_64::RBX] = Some(saved_regs.rbx);
+    registers[X86_64::RBP] = Some(saved_regs.rbp);
+    registers[X86_64::RSP] = Some(stack + 8);
+    registers[X86_64::R12] = Some(saved_regs.r12);
+    registers[X86_64::R13] = Some(saved_regs.r13);
+    registers[X86_64::R14] = Some(saved_regs.r14);
+    registers[X86_64::R15] = Some(saved_regs.r15);
+    registers[X86_64::RA] = Some(*(stack as *const u64));
 
     let mut frames = StackFrames {
         unwinder: payload.unwinder,
@@ -116,24 +117,24 @@ pub unsafe extern "C" fn unwind_recorder(payload: *mut UnwindPayload, stack: u64
 
 pub unsafe fn land(regs: &Registers) {
     let mut lr = LandingRegisters {
-        rax: regs[DwarfRegister::Rax].unwrap_or(0),
-        rbx: regs[DwarfRegister::Rbx].unwrap_or(0),
-        rcx: regs[DwarfRegister::Rcx].unwrap_or(0),
-        rdx: regs[DwarfRegister::Rdx].unwrap_or(0),
-        rdi: regs[DwarfRegister::Rdi].unwrap_or(0),
-        rsi: regs[DwarfRegister::Rsi].unwrap_or(0),
-        rbp: regs[DwarfRegister::Rbp].unwrap_or(0),
-        r8:  regs[DwarfRegister::R8 ].unwrap_or(0),
-        r9:  regs[DwarfRegister::R9 ].unwrap_or(0),
-        r10: regs[DwarfRegister::R10].unwrap_or(0),
-        r11: regs[DwarfRegister::R11].unwrap_or(0),
-        r12: regs[DwarfRegister::R12].unwrap_or(0),
-        r13: regs[DwarfRegister::R13].unwrap_or(0),
-        r14: regs[DwarfRegister::R14].unwrap_or(0),
-        r15: regs[DwarfRegister::R15].unwrap_or(0),
-        rsp: regs[DwarfRegister::SP].unwrap(),
+        rax: regs[X86_64::RAX].unwrap_or(0),
+        rbx: regs[X86_64::RBX].unwrap_or(0),
+        rcx: regs[X86_64::RCX].unwrap_or(0),
+        rdx: regs[X86_64::RDX].unwrap_or(0),
+        rdi: regs[X86_64::RDI].unwrap_or(0),
+        rsi: regs[X86_64::RSI].unwrap_or(0),
+        rbp: regs[X86_64::RBP].unwrap_or(0),
+        r8:  regs[X86_64::R8 ].unwrap_or(0),
+        r9:  regs[X86_64::R9 ].unwrap_or(0),
+        r10: regs[X86_64::R10].unwrap_or(0),
+        r11: regs[X86_64::R11].unwrap_or(0),
+        r12: regs[X86_64::R12].unwrap_or(0),
+        r13: regs[X86_64::R13].unwrap_or(0),
+        r14: regs[X86_64::R14].unwrap_or(0),
+        r15: regs[X86_64::R15].unwrap_or(0),
+        rsp: regs[X86_64::RSP].unwrap(),
     };
     lr.rsp -= 8;
-    *(lr.rsp as *mut u64) = regs[DwarfRegister::IP].unwrap();
+    *(lr.rsp as *mut u64) = regs[X86_64::RA].unwrap();
     unwind_lander(&lr);
 }
