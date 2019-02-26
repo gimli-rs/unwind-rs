@@ -1,6 +1,12 @@
 use gimli::X86_64;
-use super::{UnwindPayload, StackFrames};
 use registers::Registers;
+
+type UnwindPayload<'a> = &'a mut dyn FnMut(Registers);
+
+pub fn registers<F>(mut f: F) where F: FnMut(Registers) {
+    let mut f = &mut f as UnwindPayload;
+    unsafe { unwind_trampoline(&mut f) };
+}
 
 #[allow(improper_ctypes)] // trampoline just forwards the ptr
 extern "C" {
@@ -106,13 +112,7 @@ pub unsafe extern "C" fn unwind_recorder(payload: *mut UnwindPayload, stack: u64
     registers[X86_64::R15] = Some(saved_regs.r15);
     registers[X86_64::RA] = Some(*(stack as *const u64));
 
-    let mut frames = StackFrames {
-        unwinder: payload.unwinder,
-        registers,
-        state: None,
-    };
-
-    (payload.tracer)(&mut frames);
+    payload(registers);
 }
 
 pub unsafe fn land(regs: &Registers) {

@@ -5,7 +5,7 @@ use fallible_iterator::FallibleIterator;
 use gimli::X86_64;
 
 use registers::Registers;
-use super::{DwarfUnwinder, Unwinder};
+use super::{DwarfUnwinder, Unwinder, StackFrames};
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
@@ -58,7 +58,7 @@ type PersonalityRoutine = extern "C" fn(version: c_int, actions: c_int, class: u
 // it never needs any cleanup. Currently this is not true.
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_Resume(exception: *mut _Unwind_Exception) -> ! {
-    DwarfUnwinder::default().trace(|frames| unwind_tracer(frames, exception));
+    ::glue::registers(|registers| unwind_tracer(registers, exception));
     unreachable!();
 }
 
@@ -120,11 +120,14 @@ pub unsafe extern "C" fn _Unwind_FindEnclosingFunction(pc: *mut c_void) -> *mut 
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_RaiseException(exception: *mut _Unwind_Exception) -> _Unwind_Reason_Code {
     (*exception).private_contptr = None;
-    DwarfUnwinder::default().trace(|frames| unwind_tracer(frames, exception));
+    ::glue::registers(|registers| unwind_tracer(registers, exception));
     unreachable!();
 }
 
-unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exception) {
+unsafe fn unwind_tracer(registers: Registers, exception: *mut _Unwind_Exception) {
+    let mut unwinder = DwarfUnwinder::default();
+    let mut frames = StackFrames::new(&mut unwinder, registers);
+
     if let Some(contptr) = (*exception).private_contptr {
         loop {
             if let Some(frame) = frames.next().unwrap() {
