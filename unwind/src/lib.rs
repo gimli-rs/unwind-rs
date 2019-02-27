@@ -82,22 +82,14 @@ impl Default for DwarfUnwinder {
     }
 }
 
-pub struct UnwindPayload<'a> {
-    unwinder: &'a mut DwarfUnwinder,
-    tracer: &'a mut FnMut(&mut StackFrames),
-}
-
 impl Unwinder for DwarfUnwinder {
     fn trace<F>(&mut self, mut f: F) where F: FnMut(&mut StackFrames) {
-        let mut payload = UnwindPayload {
-            unwinder: self,
-            tracer: &mut f,
-        };
-
-        unsafe { glue::unwind_trampoline(&mut payload) };
+        glue::registers(|registers| {
+            let mut frames = StackFrames::new(self, registers);
+            f(&mut frames)
+        });
     }
 }
-
 
 struct UnwindInfo<R: Reader> {
     row: UnwindTableRow<R>,
@@ -156,6 +148,14 @@ unsafe fn deref_ptr(ptr: Pointer) -> u64 {
 
 
 impl<'a> StackFrames<'a> {
+    pub fn new(unwinder: &'a mut DwarfUnwinder, registers: Registers) -> Self {
+        StackFrames {
+            unwinder,
+            registers,
+            state: None,
+        }
+    }
+
     pub fn registers(&mut self) -> &mut Registers {
         &mut self.registers
     }

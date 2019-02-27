@@ -5,7 +5,7 @@ use fallible_iterator::FallibleIterator;
 use gimli::X86_64;
 
 use registers::Registers;
-use super::{DwarfUnwinder, Unwinder};
+use super::{DwarfUnwinder, Unwinder, StackFrames};
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
@@ -58,7 +58,11 @@ type PersonalityRoutine = extern "C" fn(version: c_int, actions: c_int, class: u
 // it never needs any cleanup. Currently this is not true.
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_Resume(exception: *mut _Unwind_Exception) -> ! {
-    DwarfUnwinder::default().trace(|frames| unwind_tracer(frames, exception));
+    ::glue::registers(|registers| {
+        if let Some(registers) = unwind_tracer(registers, exception) {
+            ::glue::land(&registers);
+        }
+    });
     unreachable!();
 }
 
@@ -120,11 +124,18 @@ pub unsafe extern "C" fn _Unwind_FindEnclosingFunction(pc: *mut c_void) -> *mut 
 #[no_mangle]
 pub unsafe extern "C" fn _Unwind_RaiseException(exception: *mut _Unwind_Exception) -> _Unwind_Reason_Code {
     (*exception).private_contptr = None;
-    DwarfUnwinder::default().trace(|frames| unwind_tracer(frames, exception));
+    ::glue::registers(|registers| {
+        if let Some(registers) = unwind_tracer(registers, exception) {
+            ::glue::land(&registers);
+        }
+    });
     unreachable!();
 }
 
-unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exception) {
+unsafe fn unwind_tracer(registers: Registers, exception: *mut _Unwind_Exception) -> Option<Registers> {
+    let mut unwinder = DwarfUnwinder::default();
+    let mut frames = StackFrames::new(&mut unwinder, registers);
+
     if let Some(contptr) = (*exception).private_contptr {
         loop {
             if let Some(frame) = frames.next().unwrap() {
@@ -132,7 +143,7 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
                     break;
                 }
             } else {
-                return;
+                return None;
             }
         }
     }
@@ -155,11 +166,12 @@ unsafe fn unwind_tracer(frames: &mut ::StackFrames, exception: *mut _Unwind_Exce
             match personality(1, _Unwind_Action::_UA_CLEANUP_PHASE as c_int, (*exception).exception_class,
                               exception, &mut ctx) {
                 _Unwind_Reason_Code::_URC_CONTINUE_UNWIND => (),
-                _Unwind_Reason_Code::_URC_INSTALL_CONTEXT => ::glue::land(frames.registers()),
+                _Unwind_Reason_Code::_URC_INSTALL_CONTEXT => return Some(frames.registers),
                 x => panic!("wtf reason code {:?}", x),
             }
         }
     }
+    None
 }
 
 #[no_mangle]
