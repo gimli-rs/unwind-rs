@@ -21,7 +21,7 @@ fn test_frame_3() {
     let bt = backtrace::Backtrace::new_unresolved();
     let ref_trace: Vec<u64> = bt.frames().iter().map(|x| x.ip() as u64).collect();
 
-    let ref_trace = &ref_trace[5..]; // skip 5 (backtrace-rs internals)
+    let ref_trace = &ref_trace[6..]; // skip 6 (backtrace-rs internals)
 
     for i in ref_trace {
         println!("{:08x}", i);
@@ -29,7 +29,8 @@ fn test_frame_3() {
     println!();
         
     DwarfUnwinder::default().trace(move |frames| {
-        // skip 2 (unwind-rs + test_frame_3)
+        // skip 3 (unwind-rs + test_frame_3)
+        frames.next().unwrap();
         frames.next().unwrap();
         frames.next().unwrap();
 
