@@ -9,7 +9,7 @@ extern crate fallible_iterator;
 use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, EndianSlice, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr, X86_64};
 use fallible_iterator::FallibleIterator;
 
-mod registers;
+pub mod registers;
 mod find_cfi;
 mod range;
 pub mod libunwind_shim;
@@ -26,9 +26,9 @@ pub struct StackFrames<'a> {
 
 #[derive(Debug)]
 pub struct StackFrame {
-    personality: Option<u64>,
-    lsda: Option<u64>,
-    initial_address: u64,
+    pub personality: Option<u64>,
+    pub lsda: Option<u64>,
+    pub initial_address: u64,
 }
 
 pub trait Unwinder: Default {
