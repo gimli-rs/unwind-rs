@@ -46,7 +46,7 @@ struct ObjectRecord {
 
 pub struct DwarfUnwinder {
     cfi: Vec<ObjectRecord>,
-    ctx: Option<UninitializedUnwindContext<EhFrame<StaticReader>, StaticReader>>,
+    ctx: UninitializedUnwindContext<StaticReader>,
 }
 
 impl Default for DwarfUnwinder {
@@ -77,7 +77,7 @@ impl Default for DwarfUnwinder {
 
         DwarfUnwinder {
             cfi,
-            ctx: Some(UninitializedUnwindContext::new()),
+            ctx: UninitializedUnwindContext::new(),
         }
     }
 }
@@ -96,28 +96,26 @@ struct UnwindInfo<R: Reader> {
     personality: Option<Pointer>,
     lsda: Option<Pointer>,
     initial_address: u64,
-    ctx: UninitializedUnwindContext<EhFrame<StaticReader>, StaticReader>,
 }
 
 impl ObjectRecord {
-    fn unwind_info_for_address(&self,
-                               ctx: UninitializedUnwindContext<EhFrame<StaticReader>, StaticReader>,
-                               address: u64) -> gimli::Result<UnwindInfo<StaticReader>> {
+    fn unwind_info_for_address(
+        &self,
+        ctx: &mut UninitializedUnwindContext<StaticReader>,
+        address: u64,
+    ) -> gimli::Result<UnwindInfo<StaticReader>> {
         let &ObjectRecord {
             ref eh_frame_hdr,
-            eh_frame: ref sel,
+            ref eh_frame,
             ref bases,
             ..
         } = self;
 
         let fde = eh_frame_hdr.table().unwrap()
-            .lookup_and_parse(address, bases, sel.clone(), |offset| sel.cie_from_offset(bases, offset))?;
-
+            .fde_for_address(eh_frame, bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset))?;
         let mut result_row = None;
-        let mut ctx = ctx.initialize(fde.cie()).unwrap();
-
         {
-            let mut table = UnwindTable::new(&mut ctx, &fde);
+            let mut table = UnwindTable::new(eh_frame, bases, ctx, &fde)?;
             while let Some(row) = table.next_row()? {
                 if row.contains(address) {
                     result_row = Some(row.clone());
@@ -129,7 +127,6 @@ impl ObjectRecord {
         match result_row {
             Some(row) => Ok(UnwindInfo {
                 row,
-                ctx: ctx.reset(),
                 personality: fde.personality(),
                 lsda: fde.lsda(),
                 initial_address: fde.initial_address(),
@@ -198,9 +195,7 @@ impl<'a> FallibleIterator for StackFrames<'a> {
 
             let rec = self.unwinder.cfi.iter().filter(|x| x.er.text.contains(caller)).next().ok_or(gimli::Error::NoUnwindInfoForAddress)?;
 
-            let ctx = self.unwinder.ctx.take().unwrap_or_else(UninitializedUnwindContext::new);
-            let UnwindInfo { row, personality, lsda, initial_address, ctx } = rec.unwind_info_for_address(ctx, caller)?;
-            self.unwinder.ctx = Some(ctx);
+            let UnwindInfo { row, personality, lsda, initial_address } = rec.unwind_info_for_address(&mut self.unwinder.ctx, caller)?;
 
             trace!("ok: {:?} (0x{:x} - 0x{:x})", row.cfa(), row.start_address(), row.end_address());
             let cfa = match *row.cfa() {
