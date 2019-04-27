@@ -1,6 +1,6 @@
 asm (
-     ".global _unwind_trampoline \n"
-     "_unwind_trampoline: \n"
+     ".global unwind_trampoline \n"
+     "unwind_trampoline: \n"
      ".cfi_startproc \n"
      "movq %rsp, %rsi \n"
      ".cfi_def_cfa rsi, 8 \n"
@@ -14,7 +14,7 @@ asm (
      "movq %rsp, %rdx \n"
      "subq $0x08, %rsp \n"
      ".cfi_def_cfa rsp, 0x40 \n"
-     "call _unwind_recorder \n"
+     "call unwind_recorder \n"
      "addq $0x38, %rsp \n"
      ".cfi_def_cfa rsp, 8 \n"
      "ret \n"
@@ -22,8 +22,8 @@ asm (
      );
 
 asm (
-     ".global _unwind_lander \n"
-     "_unwind_lander: \n"
+     ".global unwind_lander \n"
+     "unwind_lander: \n"
      "movq %rdi, %rsp \n"
      "popq %rax \n"
      "popq %rbx \n"

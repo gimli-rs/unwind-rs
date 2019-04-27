@@ -34,18 +34,17 @@ pub fn find_cfi_sections() -> Vec<EhRef> {
             end: text_seg.actual_virtual_memory_address(shlib).0 as u64 + text_seg.len() as u64,
         };
 
-        println!("{}", shlib.name().to_str().unwrap());
-
         let file_bytes = unsafe { memmap::Mmap::map(&std::fs::File::open(shlib.name().to_str().unwrap()).unwrap()).unwrap() };
 
         let object = match object::MachOFile::parse(&*file_bytes) {
             Ok(object) => object,
             Err(err) => {
                 if &file_bytes[0..4] == &[0xca, 0xfe, 0xba, 0xbe] {
-                    println!("can't parse fat mach-O file");
+                    //println!("can't parse fat mach-O file");
                     return;
                 }
 
+                println!("{}", shlib.name().to_str().unwrap());
                 println!("{:?}", err);
                 return;
             }

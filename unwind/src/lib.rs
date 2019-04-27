@@ -152,49 +152,39 @@ impl ObjectRecord {
 
         let fde;
         let mut result_row = None;
-        if let Some(eh_frame_hdr) = eh_frame_hdr {
-            fde = eh_frame_hdr.table().unwrap()
-                .fde_for_address(eh_frame, bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset))?;
+        use gimli::UnwindSection;
 
-            {
-                let mut table = UnwindTable::new(eh_frame, bases, ctx, &fde)?;
-                while let Some(row) = table.next_row()? {
-                    if row.contains(address) {
-                        result_row = Some(row.clone());
-                        break;
-                    }
+        let mut entries = eh_frame.entries(bases);
+        backtrace::resolve(address as *mut _, |s| {
+            println!("address {:016x}: {:?}", address, s.name());
+            let (text, eh_frame) = match self.er { EhRef::WithoutHeader { text, eh_frame, .. } => (text, eh_frame), _ => panic!() };
+            println!("bases {:?}", bases);
+            println!("text {:016x} .. {:016x}", text.start, text.end);
+            println!("eh_frame {:016x} .. {:016x}", eh_frame.start, eh_frame.end);
+        });
+        let mut i = 0;
+        while let Some(entry) = entries.next()? {
+            match entry {
+                gimli::CieOrFde::Cie(_) => {}
+                gimli::CieOrFde::Fde(partial) => {
+                    let fde = partial.parse(EhFrame::cie_from_offset).unwrap();
+                    println!("fde {:016x} .. {:016x}", fde.initial_address(), fde.initial_address() + fde.len());
+                    //println!("{:?}", fde);
                 }
             }
-        } else {
-            use gimli::UnwindSection;
-
-            let mut entries = eh_frame.entries(bases);
-            backtrace::resolve(address as *mut _, |s| {
-                println!("address {:016x}: {:?}", address, s.name());
-                let (text, eh_frame) = match self.er { EhRef::WithoutHeader { text, eh_frame, .. } => (text, eh_frame), _ => panic!() };
-                println!("bases {:?}", bases);
-                println!("text {:016x} .. {:016x}", text.start, text.end);
-                println!("eh_frame {:016x} .. {:016x}", eh_frame.start, eh_frame.end);
-            });
-            while let Some(entry) = entries.next()? {
-                match entry {
-                    gimli::CieOrFde::Cie(_) => {}
-                    gimli::CieOrFde::Fde(partial) => {
-                        let fde = partial.parse(|eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset)).unwrap();
-                        println!("fde {:016x} .. {:016x}", fde.initial_address(), fde.initial_address() + fde.len());
-                        //println!("{:?}", fde);
-                    }
-                }
+            i += 1;
+            if i > 10 {
+                break;
             }
-
-            fde = eh_frame.fde_for_address(bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset)).unwrap();
-            result_row = Some(eh_frame.unwind_info_for_address(
-                bases,
-                ctx,
-                address,
-                |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset),
-            )?);
         }
+
+        fde = eh_frame.fde_for_address(bases, address, EhFrame::cie_from_offset).unwrap();
+        result_row = Some(eh_frame.unwind_info_for_address(
+            bases,
+            ctx,
+            address,
+            EhFrame::cie_from_offset,
+        )?);
 
         match result_row {
             Some(row) => Ok(UnwindInfo {
