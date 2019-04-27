@@ -112,7 +112,7 @@ impl ObjectRecord {
         } = self;
 
         let fde = eh_frame_hdr.table().unwrap()
-            .fde_for_address(eh_frame, bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset))?;
+            .fde_for_address(eh_frame, bases, address, EhFrame::cie_from_offset)?;
         let mut result_row = None;
         {
             let mut table = UnwindTable::new(eh_frame, bases, ctx, &fde)?;
