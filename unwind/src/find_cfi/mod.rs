@@ -1,14 +1,24 @@
 use range::AddrRange;
 
-#[derive(Debug)]
-pub struct EhRef {
-    pub text: AddrRange,
-    pub eh_frame_hdr: AddrRange,
-    pub eh_frame_end: u64,
+#[derive(Debug, Clone)]
+pub enum EhRef {
+    WithHeader {
+        text: AddrRange,
+        eh_frame_hdr: AddrRange,
+        eh_frame_end: u64,
+    },
+    WithoutHeader {
+        text: AddrRange,
+        eh_frame: AddrRange,
+    },
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "macos")))]
 #[path = "ld.rs"]
+mod imp;
+
+#[cfg(target_os = "macos")]
+#[path = "macos.rs"]
 mod imp;
 
 #[cfg(not(unix))]

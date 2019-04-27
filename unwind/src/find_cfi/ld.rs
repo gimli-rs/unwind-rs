@@ -65,7 +65,7 @@ extern "C" fn callback(info: *const DlPhdrInfo, size: usize, data: *mut c_void) 
                     .fold(0, |vaddr, x| cmp::max(vaddr, x.vaddr + x.memsz));
                 // This is an upper bound, not the exact address.
                 let eh_frame_end = (*info).addr + max_vaddr;
-                (*data).push(EhRef {
+                (*data).push(EhRef::WithHeader {
                     text: AddrRange { start: start_addr, end: start_addr + text.memsz },
                     eh_frame_hdr: AddrRange { start: eh_frame_hdr_start, end: eh_frame_hdr_start + eh_frame_hdr.memsz },
                     eh_frame_end,

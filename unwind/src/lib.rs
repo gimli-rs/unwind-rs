@@ -5,6 +5,7 @@ extern crate gimli;
 extern crate libc;
 extern crate fallible_iterator;
 #[macro_use] extern crate log;
+extern crate backtrace;
 
 use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, EndianSlice, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr, X86_64};
 use fallible_iterator::FallibleIterator;
@@ -53,7 +54,7 @@ type StaticReader = EndianSlice<'static, NativeEndian>;
 
 struct ObjectRecord {
     er: EhRef,
-    eh_frame_hdr: ParsedEhFrameHdr<StaticReader>,
+    eh_frame_hdr: Option<ParsedEhFrameHdr<StaticReader>>,
     eh_frame: EhFrame<StaticReader>,
     bases: BaseAddresses,
 }
@@ -66,26 +67,50 @@ pub struct DwarfUnwinder {
 impl Default for DwarfUnwinder {
     fn default() -> DwarfUnwinder {
         let cfi = find_cfi::find_cfi_sections().into_iter().map(|er| {
-            unsafe {
-                // TODO: set_got()
-                let bases = BaseAddresses::default()
-                    .set_eh_frame_hdr(er.eh_frame_hdr.start)
-                    .set_text(er.text.start);
+            match er {
+                EhRef::WithHeader {
+                    text,
+                    eh_frame_hdr,
+                    eh_frame_end,
+                } => unsafe {
+                    // TODO: set_got()
+                    let bases = BaseAddresses::default()
+                        .set_eh_frame_hdr(eh_frame_hdr.start)
+                        .set_text(text.start);
 
-                let eh_frame_hdr: &'static [u8] = std::slice::from_raw_parts(er.eh_frame_hdr.start as *const u8, er.eh_frame_hdr.len() as usize);
+                    let eh_frame_hdr: &'static [u8] = std::slice::from_raw_parts(eh_frame_hdr.start as *const u8, eh_frame_hdr.len() as usize);
 
-                let eh_frame_hdr = EhFrameHdr::new(eh_frame_hdr, NativeEndian).parse(&bases, 8).unwrap();
+                    let eh_frame_hdr = EhFrameHdr::new(eh_frame_hdr, NativeEndian).parse(&bases, 8).unwrap();
 
-                let eh_frame_addr = deref_ptr(eh_frame_hdr.eh_frame_ptr());
-                let eh_frame_sz = er.eh_frame_end.saturating_sub(eh_frame_addr);
+                    let eh_frame_addr = deref_ptr(eh_frame_hdr.eh_frame_ptr());
+                    let eh_frame_sz = eh_frame_end.saturating_sub(eh_frame_addr);
 
-                let eh_frame: &'static [u8] = std::slice::from_raw_parts(eh_frame_addr as *const u8, eh_frame_sz as usize);
-                trace!("eh_frame at {:p} sz {:x}", eh_frame_addr as *const u8, eh_frame_sz);
-                let eh_frame = EhFrame::new(eh_frame, NativeEndian);
+                    let eh_frame: &'static [u8] = std::slice::from_raw_parts(eh_frame_addr as *const u8, eh_frame_sz as usize);
+                    trace!("eh_frame at {:p} sz {:x}", eh_frame_addr as *const u8, eh_frame_sz);
+                    let eh_frame = EhFrame::new(eh_frame, NativeEndian);
 
-                let bases = bases.set_eh_frame(eh_frame_addr);
+                    let bases = bases.set_eh_frame(eh_frame_addr);
 
-                ObjectRecord { er, eh_frame_hdr, eh_frame, bases }
+                    ObjectRecord { er, eh_frame_hdr: Some(eh_frame_hdr), eh_frame, bases }
+                }
+                EhRef::WithoutHeader {
+                    text,
+                    eh_frame,
+                } => unsafe {
+                    // TODO: set_got()
+                    let bases = BaseAddresses::default()
+                        .set_text(text.start);
+
+                    let eh_frame_addr = eh_frame.start as *const u8;
+                    let eh_frame_sz = eh_frame.end as usize - eh_frame.start as usize;
+                    let eh_frame: &'static [u8] = std::slice::from_raw_parts(eh_frame_addr, eh_frame_sz);
+                    trace!("eh_frame at {:p} sz {:x}", eh_frame_addr as *const u8, eh_frame_sz);
+                    let eh_frame = EhFrame::new(eh_frame, NativeEndian);
+
+                    let bases = bases.set_eh_frame(eh_frame_addr as u64);
+
+                    ObjectRecord { er, eh_frame_hdr: None, eh_frame, bases }
+                }
             }
         }).collect();
 
@@ -125,17 +150,50 @@ impl ObjectRecord {
             ..
         } = self;
 
-        let fde = eh_frame_hdr.table().unwrap()
-            .fde_for_address(eh_frame, bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset))?;
+        let fde;
         let mut result_row = None;
-        {
-            let mut table = UnwindTable::new(eh_frame, bases, ctx, &fde)?;
-            while let Some(row) = table.next_row()? {
-                if row.contains(address) {
-                    result_row = Some(row.clone());
-                    break;
+        if let Some(eh_frame_hdr) = eh_frame_hdr {
+            fde = eh_frame_hdr.table().unwrap()
+                .fde_for_address(eh_frame, bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset))?;
+
+            {
+                let mut table = UnwindTable::new(eh_frame, bases, ctx, &fde)?;
+                while let Some(row) = table.next_row()? {
+                    if row.contains(address) {
+                        result_row = Some(row.clone());
+                        break;
+                    }
                 }
             }
+        } else {
+            use gimli::UnwindSection;
+
+            let mut entries = eh_frame.entries(bases);
+            backtrace::resolve(address as *mut _, |s| {
+                println!("address {:016x}: {:?}", address, s.name());
+                let (text, eh_frame) = match self.er { EhRef::WithoutHeader { text, eh_frame, .. } => (text, eh_frame), _ => panic!() };
+                println!("bases {:?}", bases);
+                println!("text {:016x} .. {:016x}", text.start, text.end);
+                println!("eh_frame {:016x} .. {:016x}", eh_frame.start, eh_frame.end);
+            });
+            while let Some(entry) = entries.next()? {
+                match entry {
+                    gimli::CieOrFde::Cie(_) => {}
+                    gimli::CieOrFde::Fde(partial) => {
+                        let fde = partial.parse(|eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset)).unwrap();
+                        println!("fde {:016x} .. {:016x}", fde.initial_address(), fde.initial_address() + fde.len());
+                        //println!("{:?}", fde);
+                    }
+                }
+            }
+
+            fde = eh_frame.fde_for_address(bases, address, |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset)).unwrap();
+            result_row = Some(eh_frame.unwind_info_for_address(
+                bases,
+                ctx,
+                address,
+                |eh_frame, bases, offset| eh_frame.cie_from_offset(bases, offset),
+            )?);
         }
 
         match result_row {
@@ -145,7 +203,7 @@ impl ObjectRecord {
                 lsda: fde.lsda(),
                 initial_address: fde.initial_address(),
             }),
-            None => Err(gimli::Error::NoUnwindInfoForAddress)
+            None => panic!(),
         }
     }
 }
@@ -207,7 +265,17 @@ impl<'a> FallibleIterator for StackFrames<'a> {
             caller -= 1; // THIS IS NECESSARY
             debug!("caller is 0x{:x}", caller);
 
-            let rec = self.unwinder.cfi.iter().filter(|x| x.er.text.contains(caller)).next().ok_or(gimli::Error::NoUnwindInfoForAddress)?;
+            println!("{:?}, {:?}", caller, self.unwinder.cfi.iter().map(|x| x.er.clone()).collect::<Vec<_>>());
+
+            let rec = self.unwinder.cfi
+                .iter()
+                .filter(|x| match x.er {
+                    EhRef::WithoutHeader { text, .. } | EhRef::WithHeader { text, .. } => text.contains(caller),
+                })
+                .next()
+                .ok_or(gimli::Error::NoUnwindInfoForAddress)?;
+
+            println!("found");
 
             let UnwindInfo { row, personality, lsda, initial_address } = rec.unwind_info_for_address(&mut self.unwinder.ctx, caller)?;
 

@@ -24,7 +24,7 @@ pub fn find_cfi_sections() -> Vec<EhRef> {
         };
         let eh_frame_end = &__ehframe_end as *const _ as u64;
 
-        cfi.push(EhRef {
+        cfi.push(EhRef::WithHeader {
             text,
             eh_frame_hdr,
             eh_frame_end,
