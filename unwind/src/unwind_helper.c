@@ -1,4 +1,3 @@
-
 asm (
      ".global unwind_trampoline \n"
      "unwind_trampoline: \n"
