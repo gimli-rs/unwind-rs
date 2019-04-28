@@ -8,7 +8,7 @@ os:
 rust: stable
 
 script:
-  - cd unwind && cargo build && (cargo run --example demo || true) && cargo run --example trace
+  - cargo build && (cargo run --example demo || true) && cargo run --example trace && cargo test
 
 env:
 - RUST_BACKTRACE=pretty
