@@ -9,14 +9,13 @@ extern crate fallible_iterator;
 use gimli::{UnwindSection, UnwindTable, UnwindTableRow, EhFrame, BaseAddresses, UninitializedUnwindContext, Pointer, Reader, EndianSlice, NativeEndian, CfaRule, RegisterRule, EhFrameHdr, ParsedEhFrameHdr, X86_64};
 use fallible_iterator::FallibleIterator;
 
-pub mod registers;
+mod registers;
 mod find_cfi;
 mod range;
 pub mod libunwind_shim;
 pub mod glue;
-use registers::Registers;
+pub use registers::Registers;
 use find_cfi::EhRef;
-
 
 pub struct StackFrames<'a> {
     unwinder: &'a mut DwarfUnwinder,
