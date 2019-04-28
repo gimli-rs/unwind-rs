@@ -14,9 +14,8 @@ mod find_cfi;
 mod range;
 pub mod libunwind_shim;
 pub mod glue;
-use registers::Registers;
+pub use registers::Registers;
 use find_cfi::EhRef;
-
 
 pub struct StackFrames<'a> {
     unwinder: &'a mut DwarfUnwinder,
@@ -29,6 +28,20 @@ pub struct StackFrame {
     personality: Option<u64>,
     lsda: Option<u64>,
     initial_address: u64,
+}
+
+impl StackFrame {
+    pub fn personality(&self) -> Option<u64> {
+        self.personality
+    }
+
+    pub fn lsda(&self) -> Option<u64> {
+        self.lsda
+    }
+
+    pub fn initial_address(&self) -> u64 {
+        self.initial_address
+    }
 }
 
 pub trait Unwinder: Default {
