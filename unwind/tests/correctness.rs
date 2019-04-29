@@ -21,9 +21,7 @@ fn test_frame_3() {
     let bt = backtrace::Backtrace::new_unresolved();
     let ref_trace: Vec<u64> = bt.frames().iter().map(|x| x.ip() as u64).collect();
 
-    let ref_trace = &ref_trace[6..]; // skip 6 (backtrace-rs internals)
-
-    for i in ref_trace {
+    for i in &ref_trace {
         println!("{:08x}", i);
     }
     println!();
@@ -42,7 +40,9 @@ fn test_frame_3() {
         for i in &our_trace {
             println!("{:08x}", i);
         }
-        
+
+        assert!(our_trace.len() > 3);
+        let ref_trace = &ref_trace[ref_trace.len() - our_trace.len()..];
         assert_eq!(our_trace, ref_trace);
     });
 }
