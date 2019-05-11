@@ -12,10 +12,13 @@ use fallible_iterator::FallibleIterator;
 mod registers;
 mod find_cfi;
 mod range;
-pub mod libunwind_shim;
 pub mod glue;
 pub use registers::Registers;
 use find_cfi::EhRef;
+
+#[cfg(feature = "libunwind_shim")]
+pub mod libunwind_shim;
+
 
 pub struct StackFrames<'a> {
     unwinder: &'a mut DwarfUnwinder,
