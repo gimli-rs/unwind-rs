@@ -2,6 +2,7 @@
 name = "unwind"
 version = "0.1.0"
 authors = ["main() <main@ehvag.de>"]
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 gimli = "0.18"
